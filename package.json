@@ -1,0 +1,23 @@
+{
+  "name": "tf-rosnodejs",
+  "version": "0.1.0",
+  "description": "ROS TF support for rosnodejs",
+  "main": "tf.js",
+  "scripts": {
+    "test": "mocha transform.test.js vector3.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github.com/luminrobotics/tfjs"
+  },
+  "author": "Christian Fritz",
+  "license": "MIT",
+  "dependencies": {
+    "lodash": "^4.17.15",
+    "quaternion": "^1.1.0",
+    "rosnodejs": "chfritz/rosjs"
+  },
+  "devDependencies": {
+    "mocha": "^8.0.1"
+  }
+}
