@@ -7,9 +7,10 @@
 */
 
 const _ = require('lodash');
+const Quaternion = require('quaternion');
 const Transform = require('./transform.js');
 const Vector3 = require('./vector3.js');
-const Quaternion = require('quaternion');
+const Forest = require('./forest');
 
 // -----------------------------------------------------------------------
 // TF Buffering
@@ -37,6 +38,8 @@ const tfBuffer = {};
 */
 const tfPaths = {};
 
+const tfForest = new Forest();
+
 const enumeratePathsTo = function * (to) {
   for (let from in tfPaths) {
     const tos = tfPaths[from];
@@ -48,6 +51,7 @@ const enumeratePathsTo = function * (to) {
     }
   }
 };
+
 
 /** Simple FIFO queue */
 class Queue {
@@ -79,6 +83,10 @@ const bufferTFs = (tfs) => {
     const parentFrame = tf.header.frame_id.replace(/^\//, '');
     const childFrame = tf.child_frame_id.replace(/^\//, '');
     // console.log('tf', parentFrame, childFrame);
+    const treeChanged = tfForest.add(parentFrame, childFrame);
+    // if (treeChanged) {
+    //   console.log(JSON.stringify(tfForest.roots, 2, 2));
+    // }
 
     if (!tfBuffer[parentFrame]) {
       tfBuffer[parentFrame] = {};
@@ -87,7 +95,7 @@ const bufferTFs = (tfs) => {
     const parent = tfBuffer[parentFrame];
 
     if (!parent[childFrame]) {
-      console.log('got tf for', parentFrame, childFrame);
+      // console.log('got tf for', parentFrame, childFrame);
       parent[childFrame] = new Queue(10);
 
       if (!tfPaths[parentFrame]) {
@@ -218,5 +226,7 @@ module.exports = {
     rosNode.subscribe('/tf_static', 'tf2_msgs/TFMessage', bufferTFs, options);
   },
 
-  getTF: getTF
+  getTF: getTF,
+
+  getForest: () => tfForest.roots
 };
