@@ -5,6 +5,8 @@ const assert = require('assert');
 
 rosnodejs.initNode('/tfjs_test').then(async (rosNode) => {
   tf.init(rosNode);
+  setTimeout(() => console.log(JSON.stringify(tf.getForest(), 2, 2)), 500);
+  setTimeout(() => console.log(JSON.stringify(tf.getForest(), 2, 2)), 1500);
 });
 
 /** this test requires there being a publisher of the map to odom transform */

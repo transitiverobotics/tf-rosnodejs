@@ -77,13 +77,15 @@ class Queue {
 }
 
 
-const bufferTFs = (tfs) => {
+const bufferTFs = (tfs, size, nodeUri) => {
   tfs.transforms.forEach((tf) => {
 
     const parentFrame = tf.header.frame_id.replace(/^\//, '');
     const childFrame = tf.child_frame_id.replace(/^\//, '');
     // console.log('tf', parentFrame, childFrame);
-    const treeChanged = tfForest.add(parentFrame, childFrame);
+    const treeChanged = tfForest.add(parentFrame, childFrame, {nodeUri, tf});
+    // #TODO: need to allow for multiple nodes on the same edge, just for reporting
+
     // if (treeChanged) {
     //   console.log(JSON.stringify(tfForest.roots, 2, 2));
     // }

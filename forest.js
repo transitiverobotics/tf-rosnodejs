@@ -5,7 +5,7 @@ class Forest {
   nodes = {};
 
   /** Add an edge to the forest. Will connect trees as necessary. */
-  add(parentName, childName) {
+  add(parentName, childName, custom = undefined) {
     let parentNode = this.nodes[parentName];
     let childNode = this.nodes[childName];
     let changed = false;
@@ -15,6 +15,7 @@ class Forest {
       this.nodes[childName] = childNode;
       changed = true;
     }
+    childNode.custom = custom;
 
     if (!parentNode) {
       // it must be a new root
