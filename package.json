@@ -4,7 +4,8 @@
   "description": "ROS TF support for rosnodejs",
   "main": "tf.js",
   "scripts": {
-    "test": "mocha transform.test.js vector3.test.js forest.test.js"
+    "test": "mocha *.test.js",
+    "test-on-save": "while inotifywait -e close_write *.js; do npm test; done"
   },
   "repository": {
     "type": "git",
