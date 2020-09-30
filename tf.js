@@ -1,9 +1,6 @@
 /**
   Implements all we need in terms of TF (tf tree buffering, lookup,
   interpolation).
-
-  TODO: so far only supports forward lookup. Not yet reverse and
-  up-down. See algorithm used in https://github.com/RethinkRobotics-opensource/tf2_nodejs/blob/kinetic-devel/src/TfChain.js#L36.
 */
 
 const _ = require('lodash');
@@ -15,42 +12,16 @@ const Forest = require('./forest');
 // -----------------------------------------------------------------------
 // TF Buffering
 
-/* tfBuffer is a matrix
-  { fromName1: {
-      toName1: transform1,
-      toName2: transform2,
-      ....
-    },
-    fromName2: ...
-  }
+/* tfBuffer buffers the TFs, indexed by child_frame_id
+   { toName1: transform1,
+     toName2: transform2,
+     ....
+   }
 */
 const tfBuffer = {};
 
-/* paths in the TF tree of the form:
-  { fromName1: {
-      toName1: [list of frames to go through, incl. toName1],
-      ...
-    },
-    ...
-  }
-  We buffer all forward paths so we don't need to search
-  for forward lookups.
-*/
-const tfPaths = {};
-
+/** put together edges into a forrest, or, hopefully, a tree if only one root */
 const tfForest = new Forest();
-
-const enumeratePathsTo = function * (to) {
-  for (let from in tfPaths) {
-    const tos = tfPaths[from];
-    if (tos[to]) {
-      yield {
-        from,
-        path: tos[to] // the path from 'from' to 'to'
-      };
-    }
-  }
-};
 
 
 /** Simple FIFO queue */
@@ -82,7 +53,6 @@ const bufferTFs = (tfs, size, nodeUri) => {
 
     const parentFrame = tf.header.frame_id.replace(/^\//, '');
     const childFrame = tf.child_frame_id.replace(/^\//, '');
-    // console.log('tf', parentFrame, childFrame);
     const treeChanged = tfForest.add(parentFrame, childFrame, {nodeUri, tf});
     // #TODO: need to allow for multiple nodes on the same edge, just for reporting
 
@@ -90,49 +60,16 @@ const bufferTFs = (tfs, size, nodeUri) => {
     //   console.log(JSON.stringify(tfForest.roots, 2, 2));
     // }
 
-    if (!tfBuffer[parentFrame]) {
-      tfBuffer[parentFrame] = {};
+    if (!tfBuffer[childFrame]) {
+      tfBuffer[childFrame] = new Queue(10);
     }
-
-    const parent = tfBuffer[parentFrame];
-
-    if (!parent[childFrame]) {
-      // console.log('got tf for', parentFrame, childFrame);
-      parent[childFrame] = new Queue(10);
-
-      if (!tfPaths[parentFrame]) {
-        tfPaths[parentFrame] = {};
-      }
-
-      // add new paths
-      const pathsToParent = Array.from(enumeratePathsTo(parentFrame));
-      const pathsFromChild = tfPaths[childFrame];
-
-      // for each path from the child
-      _.each( pathsFromChild, (subPath, subChild) => {
-        const newSubPath = [childFrame].concat(subPath);
-        // for each path to the parent
-        _.each( pathsToParent, ({from, path}) => {
-          // add that child-path to the path-to-the-parent
-          tfPaths[from][subChild] = path.concat(newSubPath);
-        });
-
-        tfPaths[parentFrame][subChild] = newSubPath;
-      });
-
-      _.each( pathsToParent, ({from, path}) => {
-        // add that child-path to the path-to-the-parent
-        tfPaths[from][childFrame] = path.concat([childFrame]);
-      });
-      tfPaths[parentFrame][childFrame] = [childFrame];
-    }
-
-    parent[childFrame].add(tf);
+    tfBuffer[childFrame].add(tf);
   });
 };
 
 /** convert ROS timestamp to milliseconds */
 const stampToMS = (stamp) => stamp.secs * 1e3 + stamp.nsecs / 1e6;
+
 /** compute difference (in ms) between two ROS time stamps */
 const timeDiff = (a, b) => stampToMS(b) - stampToMS(a);
 
@@ -154,9 +91,9 @@ const interpolateTF = (before, after, time) => {
   return rtv;
 };
 
-/** get the TF between the given frames, interpolated to time */
-const getInterpolatedTF = (frame1, frame2, time) => {
-  const list = tfBuffer[frame1][frame2].getList();
+/** get the TF from the given frame's parent to the frame, interpolated to time */
+const getInterpolatedTF = (frame, time) => {
+  const list = tfBuffer[frame].getList();
   let before;
   let after;
   // find buffered TF before and after given time
@@ -178,30 +115,63 @@ const getInterpolatedTF = (frame1, frame2, time) => {
   }
 };
 
+/** given a node name, generate list of all ancestors node names (from root to node) */
+const getAncestors = (nodeName) => {
+  let current = tfForest.nodes[nodeName];
+  const ancestors = [];
+  while (current.parentName) {
+    ancestors.unshift(current.name);
+    current = tfForest.nodes[current.parentName];
+  }
+  ancestors.unshift(current.name);
+  return ancestors;
+};
+
+/** find path from a to b in the tree */
+const findPath = (a, b) => {
+  // get list on ancestors for both nodes
+  const aAncestors = getAncestors(a);
+  const bAncestors = getAncestors(b);
+  // truncate maximal common prefix
+  while (aAncestors[0] == bAncestors[0]) {
+    aAncestors.shift();
+    bAncestors.shift();
+  }
+  // yes, we don't need the common ancestor because edge data (TFs) is stored
+  // on the child nodes
+
+  // now merge into one path
+  const path = aAncestors
+      .reverse().map(x => `-${x}`) // up the a chain, '-' denotes inverse
+      .concat(bAncestors); // down the b chain
+  return path;
+};
+
 /** lookup path from a to b at time {secs, nsecs} */
 const getTF = (a, b, time = undefined) => {
-  const path = tfPaths[a] && tfPaths[a][b];
+  const path = findPath(a, b);
 
   if (path) {
-    let currentFrame = a;
     let currentTF;
     path.forEach( (nextFrame) => {
+      const reverse = (nextFrame[0] == '-');
+      if (reverse) nextFrame = nextFrame.slice(1);
 
       // find the transform in the buffer that is closest in time
-      const closestTransform = (
-        time ? getInterpolatedTF(currentFrame, nextFrame, time)
-        : tfBuffer[currentFrame][nextFrame].getTop()
-      );
+      const closestTransform = (time ? getInterpolatedTF(nextFrame, time)
+        : tfBuffer[nextFrame].getTop());
 
-      const nextTF = new Transform(closestTransform.transform);
+      let nextTF = new Transform(closestTransform.transform);
+      if (reverse) nextTF = nextTF.getInverse();
+
       if (currentTF) {
         currentTF = currentTF.multiply(nextTF);
       } else {
         currentTF = nextTF;
       }
-      currentFrame = nextFrame;
     });
     return currentTF;
+
   } else {
     console.log(`no path from ${a} to ${b}`);
   }

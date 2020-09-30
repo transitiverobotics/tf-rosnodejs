@@ -2,7 +2,7 @@
 class Vector3 {
 
   constructor(xyz) {
-    this.xyz = xyz;
+    Object.assign(this, xyz);
   }
 
   /** cunstrucot from flat array (length 3) */
@@ -10,31 +10,27 @@ class Vector3 {
     return new Vector3({x: a[0], y: a[1], z: a[2]});
   }
 
-  get x() { return this.xyz.x; }
-  get y() { return this.xyz.y; }
-  get z() { return this.xyz.z; }
-
   /** add another vector, or another {x,y,z} , either works*/
   add(xyz) {
     return new Vector3({
-      x: this.xyz.x + xyz.x,
-      y: this.xyz.y + xyz.y,
-      z: this.xyz.z + xyz.z,
+      x: this.x + xyz.x,
+      y: this.y + xyz.y,
+      z: this.z + xyz.z,
     });
   }
 
   /** multiply by a scalar */
   multiply(scalar) {
     return new Vector3({
-      x: this.xyz.x * scalar,
-      y: this.xyz.y * scalar,
-      z: this.xyz.z * scalar,
+      x: this.x * scalar,
+      y: this.y * scalar,
+      z: this.z * scalar,
     });
   }
 
   /** get as a flat array (length 3) */
   asArray() {
-    return [this.xyz.x, this.xyz.y, this.xyz.z];
+    return [this.x, this.y, this.z];
   }
 }
 

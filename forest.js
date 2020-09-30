@@ -16,6 +16,7 @@ class Forest {
       changed = true;
     }
     childNode.custom = custom;
+    childNode.parentName = parentName;
 
     if (!parentNode) {
       // it must be a new root
