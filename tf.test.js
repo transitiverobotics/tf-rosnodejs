@@ -21,6 +21,8 @@ describe('test TF', function() {
          ├─f4
          └─f2
             └─f3
+        e1         # disconnected
+         └─e2
     */
     processes.push(spawn('rosrun',
       'tf2_ros static_transform_publisher 2 0 0 0 0 0 f1 f4'.split(' ')));
@@ -28,6 +30,8 @@ describe('test TF', function() {
       'tf2_ros static_transform_publisher 1 0 0 0 0 0 f1 f2'.split(' ')));
     processes.push(spawn('rosrun',
       'tf2_ros static_transform_publisher 0 1 0 0 0 0 f2 f3'.split(' ')));
+    processes.push(spawn('rosrun',
+      'tf2_ros static_transform_publisher 0 1 0 0 0 0 e1 e2'.split(' ')));
 
     setTimeout(done, 1000);
   })
@@ -61,4 +65,17 @@ describe('test TF', function() {
     assert.equal(transform.translation.y, 0);
     assert.equal(transform.translation.z, 0);
   });
+
+  it('should fail if one of the frames does not exist', function() {
+    assert(!tf.getTF('f00000','f3'));
+    assert(!tf.getTF('f3','f00000'));
+  });
+
+  it('should fail if no path exists, separate trees', function() {
+    assert(!tf.getTF('e2','f2'));
+    assert(!tf.getTF('e1','f1'));
+    assert(!tf.getTF('e1','f2'));
+    assert(!tf.getTF('e2','f1'));
+  });
+
 });

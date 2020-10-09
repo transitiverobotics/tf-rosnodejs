@@ -118,6 +118,9 @@ const getInterpolatedTF = (frame, time) => {
 /** given a node name, generate list of all ancestors node names (from root to node) */
 const getAncestors = (nodeName) => {
   let current = tfForest.nodes[nodeName];
+  if (!current) {
+    return [nodeName];
+  }
   const ancestors = [];
   while (current.parentName) {
     ancestors.unshift(current.name);
@@ -127,13 +130,21 @@ const getAncestors = (nodeName) => {
   return ancestors;
 };
 
-/** find path from a to b in the tree */
+/** find path from a to b in the tree if one exists */
 const findPath = (a, b) => {
   // get list on ancestors for both nodes
   const aAncestors = getAncestors(a);
   const bAncestors = getAncestors(b);
+
+  if (aAncestors.length == 0 || bAncestors.length == 0 ||
+    aAncestors[0] != bAncestors[0]) {
+    // no common root!
+    return null;
+  }
+
   // truncate maximal common prefix
-  while (aAncestors[0] == bAncestors[0]) {
+  while (aAncestors.length > 0 && bAncestors.length > 0 &&
+    aAncestors[0] == bAncestors[0]) {
     aAncestors.shift();
     bAncestors.shift();
   }
@@ -150,7 +161,6 @@ const findPath = (a, b) => {
 /** lookup path from a to b at time {secs, nsecs} */
 const getTF = (a, b, time = undefined) => {
   const path = findPath(a, b);
-
   if (path) {
     let currentTF;
     path.forEach( (nextFrame) => {
